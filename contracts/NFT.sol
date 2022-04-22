@@ -19,7 +19,7 @@ contract NFT is ERC721Tradable {
         _contractURI = contractUri;
     }
 
-    function baseTokenURI() public view override returns (string memory) {
+    function _baseURI() internal view override returns (string memory) {
         return _baseTokenURI;
     }
 

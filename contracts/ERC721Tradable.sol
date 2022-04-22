@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
@@ -24,7 +24,7 @@ contract ProxyRegistry {
  * @title ERC721Tradable
  * ERC721Tradable - ERC721 contract that whitelists a trading address, and has minting functionality.
  */
-abstract contract ERC721Tradable is ERC721, ContextMixin, NativeMetaTransaction, Ownable {
+abstract contract ERC721Tradable is ERC721URIStorage, ContextMixin, NativeMetaTransaction, Ownable {
     using SafeMath for uint256;
     using Counters for Counters.Counter;
 
@@ -52,11 +52,11 @@ abstract contract ERC721Tradable is ERC721, ContextMixin, NativeMetaTransaction,
      * @dev Mints a token to an address with a tokenURI.
      * @param _to address of the future owner of the token
      */
-    function mintTo(address _to, string memory cid) public onlyOwner {
+    function mintTo(address _to, string memory _tokenURI) public onlyOwner {
         uint256 currentTokenId = _nextTokenId.current();
         _nextTokenId.increment();
         _safeMint(_to, currentTokenId);
-        tokenCids[currentTokenId] = cid;
+        _setTokenURI(currentTokenId, _tokenURI);
     }
 
     /**
@@ -65,12 +65,6 @@ abstract contract ERC721Tradable is ERC721, ContextMixin, NativeMetaTransaction,
      */
     function totalSupply() public view returns (uint256) {
         return _nextTokenId.current() - 1;
-    }
-
-    function baseTokenURI() virtual public view returns (string memory);
-
-    function tokenURI(uint256 _tokenId) override public view returns (string memory) {
-        return string(abi.encodePacked(baseTokenURI(), tokenCids[_tokenId]));
     }
 
     /**

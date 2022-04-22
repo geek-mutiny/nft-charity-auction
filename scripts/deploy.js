@@ -1,19 +1,28 @@
 const hre = require("hardhat");
-const pinata = require("./pinata");
+const fs = require('fs');
+const pinataSDK = require('@pinata/sdk');
+const pinata = pinataSDK(process.env.PINATA_API_KEY, process.env.PINATA_API_SECRET);
 require("dotenv").config();
 
 async function uploadCollectionData(feeRecipient) {
   const collectionJson = require("../metadata/collection.json");
-  const imageCid = await pinata.pinFileToIPFS(
-    process.env.PINATA_API_KEY, process.env.PINATA_API_SECRET, "./images/collection.png"
+  const { IpfsHash: imageCid } = await pinata.pinFileToIPFS(
+    fs.createReadStream("./images/collection.png"),
+    {
+      pinataMetadata: {
+        name: process.env.NFT_SYMBOL + "-collection.png"
+      }
+    }
   );
 
   collectionJson.image = process.env.PINATA_BASE_URI + imageCid;
   collectionJson.fee_recipient = feeRecipient;
 
-  const metaCid = await pinata.pinJSONToIPFS(
-    process.env.PINATA_API_KEY, process.env.PINATA_API_SECRET, "collection.json", collectionJson
-  );
+  const { IpfsHash: metaCid } = await pinata.pinJSONToIPFS(collectionJson, {
+    pinataMetadata: {
+      name: process.env.NFT_SYMBOL + "-collection.json"
+    }
+  });
 
   return metaCid;
 }
