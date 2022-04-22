@@ -1,0 +1,8 @@
+{
+    "name": "Test NFT",
+    "description": "Test NFT description.",
+    "image": "",
+    "external_link": "https://testnets.opensea.io",
+    "seller_fee_basis_points": 200,
+    "fee_recipient": ""
+}
