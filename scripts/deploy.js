@@ -28,8 +28,15 @@ async function uploadCollectionData(feeRecipient) {
 }
 
 async function main() {
-  let owner;
-  [owner] = await hre.ethers.getSigners();
+  let proxyRegistryAddress;
+
+  const [owner] = await hre.ethers.getSigners();
+
+  if (hre.network.name === 'rinkeby') {
+    proxyRegistryAddress = process.env.RINKEBY_PROXY_REGISTRY_ADDRESS;
+  } else { // mainnet
+    proxyRegistryAddress = process.env.MAINNET_PROXY_REGISTRY_ADDRESS;
+  }
 
   const metaCid = await uploadCollectionData(owner.address);
   const collectionUri = process.env.PINATA_BASE_URI + metaCid;
@@ -42,7 +49,7 @@ async function main() {
     process.env.NFT_SYMBOL,
     process.env.PINATA_BASE_URI,
     collectionUri,
-    process.env.PROXY_REGISTRY_ADDRESS
+    proxyRegistryAddress
   );
   await nft.deployed();
 
@@ -54,11 +61,16 @@ async function main() {
       process.env.NFT_SYMBOL,
       process.env.PINATA_BASE_URI,
       collectionUri,
-      process.env.PROXY_REGISTRY_ADDRESS,
+      process.env.MAINNET_PROXY_REGISTRY_ADDRESS,
     ],
   });*/
 
-  const nftAuction = await NftAuction.deploy(nft.address);
+  const nftAuction = await NftAuction.deploy(
+    nft.address,
+    process.env.AUCTION_MAX_FEE,
+    process.env.AUCTION_AUTHOR_ADDRESS,
+    process.env.AUCTION_CHARITY_ADDRESS
+  );
   await nftAuction.deployed();
 
   await nft.setApprovalForAll(nftAuction.address, true);

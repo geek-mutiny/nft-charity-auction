@@ -35,7 +35,6 @@ abstract contract ERC721Tradable is ERC721URIStorage, ContextMixin, NativeMetaTr
      */ 
     Counters.Counter private _nextTokenId;
     address proxyRegistryAddress;
-    mapping(uint256 => string) private tokenCids;
 
     constructor(
         string memory _name,

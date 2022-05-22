@@ -1,44 +1,65 @@
 const { expect } = require("chai");
 const { ethers, waffle } = require("hardhat");
+require("dotenv").config();
 
 async function getCurrentTimestamp() {
     return (await ethers.provider.getBlock("latest")).timestamp;
 }
 
 describe("NFT Auction", function () {
+    const provider = waffle.provider;
     const tokenId = 1;
+    const authorFee = 5;
+    const marketingFee = 5;
 
     let nft;
     let nftAuction;
     let owner;
     let bidder1;
     let bidder2;
+    let author;
+    let marketing;
+    let charity;
     let endTimestamp;
 
     beforeEach(async function () {
         endTimestamp = await getCurrentTimestamp() + 20;
+        const collectionUri = "ipfs://test";
         const NFT = await hre.ethers.getContractFactory("NFT");
         const NftAuction = await hre.ethers.getContractFactory("NftAuction");
         const ProxyRegistry = await hre.ethers.getContractFactory("ProxyRegistry");
 
-        [owner, bidder1, bidder2] = await hre.ethers.getSigners();
+        [owner, bidder1, bidder2, author, marketing, charity] = await hre.ethers.getSigners();
 
         const proxyRegistry = await ProxyRegistry.deploy();
         await proxyRegistry.deployed();
 
-        nft = await NFT.deploy(proxyRegistry.address);
+        nft = await NFT.deploy(
+            process.env.NFT_NAME,
+            process.env.NFT_SYMBOL,
+            process.env.PINATA_BASE_URI,
+            collectionUri,
+            proxyRegistry.address
+        );
         await nft.deployed();
 
-        nftAuction = await NftAuction.deploy(nft.address);
+        nftAuction = await NftAuction.deploy(
+            nft.address,
+            process.env.AUCTION_MAX_FEE,
+            author.address,
+            marketing.address,
+            charity.address
+        );
         await nftAuction.deployed();
 
         await nft.setApprovalForAll(nftAuction.address, true);
-        await nft.mintTo(owner.address);
+        await nft.mintTo(owner.address, tokenId);
 
-        await expect(nftAuction.createOffer(tokenId, ethers.utils.parseEther("0.1"), ethers.utils.parseEther("10"), endTimestamp))
-            .to.emit(nftAuction, 'CreateOffer').withArgs(
-                tokenId, ethers.utils.parseEther("0.1"), ethers.utils.parseEther("10"), endTimestamp
-            );
+        await expect(nftAuction.createOffer(
+            tokenId, ethers.utils.parseEther("0.1"), ethers.utils.parseEther("10"), endTimestamp, authorFee, marketingFee
+        )).to.emit(nftAuction, 'CreateOffer').withArgs(
+            tokenId, ethers.utils.parseEther("0.1"), ethers.utils.parseEther("10"), endTimestamp, authorFee, marketingFee
+        );
 
         expect(await nftAuction.offerIsActive(tokenId)).to.be.true;
     });
@@ -49,8 +70,21 @@ describe("NFT Auction", function () {
     });
 
     it("Make max bid and purchase NFT", async function () {
-        await expect(nftAuction.connect(bidder1).makeBid(tokenId, { value: ethers.utils.parseEther("10") }))
+        const authorBalance = await provider.getBalance(author.address);
+        const marketingBalance = await provider.getBalance(marketing.address);
+        const charityBalance = await provider.getBalance(charity.address);
+        const bidAmount = ethers.utils.parseEther("10");
+
+        await expect(nftAuction.connect(bidder1).makeBid(tokenId, { value: bidAmount }))
             .to.emit(nftAuction, 'PurchaseItem').withArgs(bidder1.address, tokenId);
+
+        const authorFeeAmount = bidAmount.mul(authorFee).div(100);
+        const marketingFeeAmount = bidAmount.mul(marketingFee).div(100);
+        const charityAmount = charityBalance.add(bidAmount.sub(authorFeeAmount).sub(marketingFeeAmount));
+
+        expect(await provider.getBalance(author.address)).to.be.equal(authorBalance.add(authorFeeAmount));
+        expect(await provider.getBalance(marketing.address)).to.be.equal(marketingBalance.add(marketingFeeAmount));
+        expect(await provider.getBalance(charity.address)).to.be.equal(charityAmount);
     });
 
     it("Close offer", async function () {
@@ -78,16 +112,19 @@ describe("NFT Auction", function () {
     });
 
     it("Outbid", async function () {
-        const provider = waffle.provider;
         let bidder1Balance = await provider.getBalance(bidder1.address);
 
         await expect(nftAuction.connect(bidder1).makeBid(tokenId, { value: ethers.utils.parseEther("0.2") }))
             .to.emit(nftAuction, 'MakeBid').withArgs(tokenId, ethers.utils.parseEther("0.2"));
 
-        bidder1Balance = (await provider.getBalance(bidder1.address)).add(ethers.utils.parseEther("0.2"));
-
         await expect(nftAuction.connect(bidder2).makeBid(tokenId, { value: ethers.utils.parseEther("0.3") }))
             .to.emit(nftAuction, 'MakeBid').withArgs(tokenId, ethers.utils.parseEther("0.3"));
+
+        await expect(
+            nftAuction.connect(bidder1).withdrawRefund(tokenId)
+        ).to.emit(nftAuction, 'WithdrawRefund').withArgs(tokenId, ethers.utils.parseEther("0.2"));
+
+        bidder1Balance = (await provider.getBalance(bidder1.address)).add(ethers.utils.parseEther("0.2"));
 
         expect(await provider.getBalance(bidder1.address)).to.be.equal(bidder1Balance);
     });
@@ -96,14 +133,15 @@ describe("NFT Auction", function () {
         let anotherTokenId;
         const anotherEndTimestamp = await getCurrentTimestamp() + 30;
 
-        await nft.mintTo(owner.address);
+        await nft.mintTo(owner.address, "uri");
 
         anotherTokenId = await nft.totalSupply();
 
-        await expect(nftAuction.createOffer(anotherTokenId, ethers.utils.parseEther("1"), 0, anotherEndTimestamp))
-            .to.emit(nftAuction, 'CreateOffer').withArgs(
-                anotherTokenId, ethers.utils.parseEther("1"), 0, anotherEndTimestamp
-            );
+        await expect(nftAuction.createOffer(
+            anotherTokenId, ethers.utils.parseEther("1"), 0, anotherEndTimestamp, 5, 5
+        )).to.emit(nftAuction, 'CreateOffer').withArgs(
+            anotherTokenId, ethers.utils.parseEther("1"), 0, anotherEndTimestamp, 5, 5
+        );
 
         await expect(nftAuction.connect(bidder1).makeBid(anotherTokenId, { value: ethers.utils.parseEther("1.1") }))
             .to.emit(nftAuction, 'MakeBid').withArgs(anotherTokenId, ethers.utils.parseEther("1.1"));
@@ -114,5 +152,19 @@ describe("NFT Auction", function () {
             .to.emit(nftAuction, 'PurchaseItem').withArgs(bidder1.address, anotherTokenId);
 
         expect(await nftAuction.offerIsActive(anotherTokenId)).to.be.false;
+    });
+
+    it("Pause contract", async function () {
+        await expect(nftAuction.pause())
+            .to.emit(nftAuction, "Paused").withArgs(owner.address);
+
+        await expect(nftAuction.connect(bidder1).makeBid(tokenId, { value: ethers.utils.parseEther("0.2") }))
+            .to.be.revertedWith("Pausable: paused");
+
+        await expect(nftAuction.unpause())
+            .to.emit(nftAuction, "Unpaused").withArgs(owner.address);
+
+        await expect(nftAuction.connect(bidder1).makeBid(tokenId, { value: ethers.utils.parseEther("0.2") }))
+            .to.emit(nftAuction, 'MakeBid').withArgs(tokenId, ethers.utils.parseEther("0.2"));
     });
 });
