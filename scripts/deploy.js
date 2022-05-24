@@ -67,9 +67,7 @@ async function main() {
 
   const nftAuction = await NftAuction.deploy(
     nft.address,
-    process.env.AUCTION_MAX_FEE,
-    process.env.AUCTION_AUTHOR_ADDRESS,
-    process.env.AUCTION_CHARITY_ADDRESS
+    process.env.AUCTION_MAX_FEE
   );
   await nftAuction.deployed();
 

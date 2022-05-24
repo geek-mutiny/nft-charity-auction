@@ -4,26 +4,16 @@ pragma solidity 0.8.13;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 import "./NFT.sol";
 
 contract NftAuction is Ownable, Pausable, ReentrancyGuard {
-    using Address for address;
-    using SafeMath for uint256;
-
     NFT nft;
 
     mapping(uint256 => Offer) private offers;
 
     uint256 public maxFee;
-
-    address public authorAddress;
-
-    address public marketingAddress;
-
-    address public charityAddress;
 
     struct Offer {
         uint256 maxBid;
@@ -36,6 +26,9 @@ contract NftAuction is Ownable, Pausable, ReentrancyGuard {
         mapping(address => uint256) refunds;
         bool exists;
         bool closed;
+        address payable authorAddress;
+        address payable marketingAddress;
+        address payable charityAddress;
     }
 
     event CreateOffer(
@@ -44,7 +37,10 @@ contract NftAuction is Ownable, Pausable, ReentrancyGuard {
         uint256 maxBid,
         uint256 endTimestamp,
         uint256 authorFee,
-        uint256 marketingFee
+        uint256 marketingFee,
+        address authorAddress,
+        address marketingAddress,
+        address charityAddress
     );
 
     event MakeBid(uint256 tokenId, uint256 amount);
@@ -55,22 +51,9 @@ contract NftAuction is Ownable, Pausable, ReentrancyGuard {
 
     event PurchaseItem(address recipient, uint256 tokenId);
 
-    constructor(
-        NFT _nft,
-        uint256 _maxFee,
-        address _authorAddress,
-        address _marketingAddress,
-        address _charityAddress
-    ) {
-        require(_authorAddress != address(0), "Wrong author address");
-        require(_marketingAddress != address(0), "Wrong marketing address");
-        require(_charityAddress != address(0), "Wrong charity address");
-
+    constructor(NFT _nft, uint256 _maxFee) {
         nft = _nft;
         maxFee = _maxFee;
-        authorAddress = _authorAddress;
-        marketingAddress = _marketingAddress;
-        charityAddress = _charityAddress;
     }
 
     function createOffer(
@@ -79,10 +62,16 @@ contract NftAuction is Ownable, Pausable, ReentrancyGuard {
         uint256 maxBid,
         uint256 endTimestamp,
         uint256 authorFee,
-        uint256 marketingFee
+        uint256 marketingFee,
+        address payable authorAddress,
+        address payable marketingAddress,
+        address payable charityAddress
     ) external onlyOwner whenNotPaused {
         require(!offers[tokenId].exists, "Offer already exists");
-        require(authorFee.add(marketingFee) <= maxFee, "Fees are too high");
+        require(authorFee + marketingFee <= maxFee, "Fees are too high");
+        require(authorAddress != address(0), "Wrong author address");
+        require(marketingAddress != address(0), "Wrong marketing address");
+        require(charityAddress != address(0), "Wrong charity address");
 
         Offer storage newOffer = offers[tokenId];
 
@@ -95,6 +84,9 @@ contract NftAuction is Ownable, Pausable, ReentrancyGuard {
         newOffer.marketingFee = marketingFee;
         newOffer.exists = true;
         newOffer.closed = false;
+        newOffer.authorAddress = authorAddress;
+        newOffer.marketingAddress = marketingAddress;
+        newOffer.charityAddress = charityAddress;
 
         emit CreateOffer(
             tokenId,
@@ -102,7 +94,10 @@ contract NftAuction is Ownable, Pausable, ReentrancyGuard {
             maxBid,
             endTimestamp,
             authorFee,
-            marketingFee
+            marketingFee,
+            authorAddress,
+            marketingAddress,
+            charityAddress
         );
     }
 
@@ -174,9 +169,7 @@ contract NftAuction is Ownable, Pausable, ReentrancyGuard {
 
         offers[tokenId].refunds[msg.sender] = 0;
 
-        (bool success, ) = msg.sender.call{value: refund}("");
-
-        require(success);
+        Address.sendValue(payable(msg.sender), refund);
 
         emit WithdrawRefund(tokenId, refund);
     }
@@ -184,41 +177,29 @@ contract NftAuction is Ownable, Pausable, ReentrancyGuard {
     function addRefund(uint256 tokenId) internal {
         uint256 refund = offers[tokenId].refunds[offers[tokenId].bidder];
 
-        offers[tokenId].refunds[offers[tokenId].bidder] = refund.add(
-            offers[tokenId].currentBid
-        );
+        offers[tokenId].refunds[offers[tokenId].bidder] =
+            refund +
+            offers[tokenId].currentBid;
     }
 
-    // @todo rework to pull
+    // @todo rework to pull?
     function purchaseItem(address recipient, uint256 tokenId)
         internal
         nonReentrant
     {
         nft.safeTransferFrom(owner(), recipient, tokenId);
 
-        uint256 authorAmount = offers[tokenId]
-            .currentBid
-            .mul(offers[tokenId].authorFee)
-            .div(100);
-        uint256 marketingAmount = offers[tokenId]
-            .currentBid
-            .mul(offers[tokenId].marketingFee)
-            .div(100);
-        uint256 charityAmount = offers[tokenId]
-            .currentBid
-            .sub(authorAmount)
-            .sub(marketingAmount);
+        uint256 authorAmount = (offers[tokenId].currentBid *
+            offers[tokenId].authorFee) / 100;
+        uint256 marketingAmount = (offers[tokenId].currentBid *
+            offers[tokenId].marketingFee) / 100;
+        uint256 charityAmount = offers[tokenId].currentBid -
+            authorAmount -
+            marketingAmount;
 
-        (bool authorSuccess, ) = authorAddress.call{value: authorAmount}("");
-        require(authorSuccess);
-
-        (bool marketingSuccess, ) = marketingAddress.call{
-            value: marketingAmount
-        }("");
-        require(marketingSuccess);
-
-        (bool charitySuccess, ) = charityAddress.call{value: charityAmount}("");
-        require(charitySuccess);
+        Address.sendValue(offers[tokenId].authorAddress, authorAmount);
+        Address.sendValue(offers[tokenId].marketingAddress, marketingAmount);
+        Address.sendValue(offers[tokenId].charityAddress, charityAmount);
 
         emit PurchaseItem(recipient, tokenId);
     }

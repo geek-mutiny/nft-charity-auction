@@ -45,10 +45,7 @@ describe("NFT Auction", function () {
 
         nftAuction = await NftAuction.deploy(
             nft.address,
-            process.env.AUCTION_MAX_FEE,
-            author.address,
-            marketing.address,
-            charity.address
+            process.env.AUCTION_MAX_FEE
         );
         await nftAuction.deployed();
 
@@ -56,9 +53,11 @@ describe("NFT Auction", function () {
         await nft.mintTo(owner.address, tokenId);
 
         await expect(nftAuction.createOffer(
-            tokenId, ethers.utils.parseEther("0.1"), ethers.utils.parseEther("10"), endTimestamp, authorFee, marketingFee
+            tokenId, ethers.utils.parseEther("0.1"), ethers.utils.parseEther("10"), endTimestamp,
+            authorFee, marketingFee, author.address, marketing.address, charity.address
         )).to.emit(nftAuction, 'CreateOffer').withArgs(
-            tokenId, ethers.utils.parseEther("0.1"), ethers.utils.parseEther("10"), endTimestamp, authorFee, marketingFee
+            tokenId, ethers.utils.parseEther("0.1"), ethers.utils.parseEther("10"), endTimestamp,
+            authorFee, marketingFee, author.address, marketing.address, charity.address
         );
 
         expect(await nftAuction.offerIsActive(tokenId)).to.be.true;
@@ -112,19 +111,27 @@ describe("NFT Auction", function () {
     });
 
     it("Outbid", async function () {
+        const bidder1Bid = ethers.utils.parseEther("0.2");
         let bidder1Balance = await provider.getBalance(bidder1.address);
 
-        await expect(nftAuction.connect(bidder1).makeBid(tokenId, { value: ethers.utils.parseEther("0.2") }))
-            .to.emit(nftAuction, 'MakeBid').withArgs(tokenId, ethers.utils.parseEther("0.2"));
+        const bidTx = await nftAuction.connect(bidder1).makeBid(tokenId, { value: bidder1Bid });
+
+        await expect(bidTx).to.emit(nftAuction, 'MakeBid').withArgs(tokenId, bidder1Bid);
+
+        const bidReceipt = await bidTx.wait();
+
+        bidder1Balance = bidder1Balance.sub(bidReceipt.gasUsed.mul(bidReceipt.effectiveGasPrice));
 
         await expect(nftAuction.connect(bidder2).makeBid(tokenId, { value: ethers.utils.parseEther("0.3") }))
             .to.emit(nftAuction, 'MakeBid').withArgs(tokenId, ethers.utils.parseEther("0.3"));
 
-        await expect(
-            nftAuction.connect(bidder1).withdrawRefund(tokenId)
-        ).to.emit(nftAuction, 'WithdrawRefund').withArgs(tokenId, ethers.utils.parseEther("0.2"));
+        const withdrawTx = await nftAuction.connect(bidder1).withdrawRefund(tokenId);
 
-        bidder1Balance = (await provider.getBalance(bidder1.address)).add(ethers.utils.parseEther("0.2"));
+        await expect(withdrawTx).to.emit(nftAuction, 'WithdrawRefund').withArgs(tokenId, bidder1Bid);
+
+        const withdrawReceipt = await withdrawTx.wait();
+
+        bidder1Balance = bidder1Balance.sub(withdrawReceipt.gasUsed.mul(withdrawReceipt.effectiveGasPrice));
 
         expect(await provider.getBalance(bidder1.address)).to.be.equal(bidder1Balance);
     });
@@ -138,9 +145,11 @@ describe("NFT Auction", function () {
         anotherTokenId = await nft.totalSupply();
 
         await expect(nftAuction.createOffer(
-            anotherTokenId, ethers.utils.parseEther("1"), 0, anotherEndTimestamp, 5, 5
+            anotherTokenId, ethers.utils.parseEther("1"), 0, anotherEndTimestamp, 5, 5,
+            author.address, marketing.address, charity.address
         )).to.emit(nftAuction, 'CreateOffer').withArgs(
-            anotherTokenId, ethers.utils.parseEther("1"), 0, anotherEndTimestamp, 5, 5
+            anotherTokenId, ethers.utils.parseEther("1"), 0, anotherEndTimestamp, 5, 5,
+            author.address, marketing.address, charity.address
         );
 
         await expect(nftAuction.connect(bidder1).makeBid(anotherTokenId, { value: ethers.utils.parseEther("1.1") }))
