@@ -1,6 +1,6 @@
-# Basic Sample Hardhat Project
+# NFT Charity Auction
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, a sample script that deploys that contract, and an example of a task implementation, which simply lists the available accounts.
+NFT Charity Auction Hardhat project.
 
 Try running some of the following tasks:
 
@@ -12,4 +12,6 @@ npx hardhat test
 npx hardhat node
 node scripts/sample-script.js
 npx hardhat help
+npx hardhat run --network rinkeby scripts/deploy.js
+npx hardhat run --network rinkeby scripts/mint.js
 ```
