@@ -28,15 +28,16 @@ async function uploadTokenData(tokenId) {
 }
 
 async function main() {
+    const receiverAddress = process.env.AUCTION_ADDRESS;
     let owner;
     [owner] = await hre.ethers.getSigners();
 
     const nft = await hre.ethers.getContractAt("NFT", process.env.NFT_ADDRESS);
     const newTokenId = (await nft.totalSupply()).add(1);
     const metaCid = await uploadTokenData(newTokenId);
-    await nft.mintTo(owner.address, metaCid);
+    await nft.mintTo(receiverAddress, metaCid);
 
-    console.log('NFT ' + newTokenId + ' with CID = ' + metaCid + ' minted to ' + owner.address);
+    console.log('NFT ' + newTokenId + ' with CID = ' + metaCid + ' minted to ' + receiverAddress);
 }
 
 main()

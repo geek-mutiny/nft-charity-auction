@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
+import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
@@ -8,7 +10,7 @@ import "@openzeppelin/contracts/utils/Address.sol";
 
 import "./NFT.sol";
 
-contract NftAuction is Ownable, Pausable, ReentrancyGuard {
+contract NftAuction is Ownable, Pausable, ReentrancyGuard, ERC721Holder, ERC1155Holder {
     NFT nft;
 
     mapping(uint256 => Offer) private offers;
@@ -22,12 +24,10 @@ contract NftAuction is Ownable, Pausable, ReentrancyGuard {
         uint256 endTimestamp;
         address bidder;
         uint256 authorFee;
-        uint256 marketingFee;
         mapping(address => uint256) refunds;
         bool exists;
         bool closed;
         address payable authorAddress;
-        address payable marketingAddress;
         address payable charityAddress;
     }
 
@@ -37,9 +37,7 @@ contract NftAuction is Ownable, Pausable, ReentrancyGuard {
         uint256 maxBid,
         uint256 endTimestamp,
         uint256 authorFee,
-        uint256 marketingFee,
         address authorAddress,
-        address marketingAddress,
         address charityAddress
     );
 
@@ -62,15 +60,12 @@ contract NftAuction is Ownable, Pausable, ReentrancyGuard {
         uint256 maxBid,
         uint256 endTimestamp,
         uint256 authorFee,
-        uint256 marketingFee,
         address payable authorAddress,
-        address payable marketingAddress,
         address payable charityAddress
     ) external onlyOwner whenNotPaused {
         require(!offers[tokenId].exists, "Offer already exists");
-        require(authorFee + marketingFee <= maxFee, "Fees are too high");
+        require(authorFee <= maxFee, "Fee is too high");
         require(authorAddress != address(0), "Wrong author address");
-        require(marketingAddress != address(0), "Wrong marketing address");
         require(charityAddress != address(0), "Wrong charity address");
 
         Offer storage newOffer = offers[tokenId];
@@ -81,11 +76,9 @@ contract NftAuction is Ownable, Pausable, ReentrancyGuard {
         newOffer.endTimestamp = endTimestamp;
         newOffer.bidder = owner();
         newOffer.authorFee = authorFee;
-        newOffer.marketingFee = marketingFee;
         newOffer.exists = true;
         newOffer.closed = false;
         newOffer.authorAddress = authorAddress;
-        newOffer.marketingAddress = marketingAddress;
         newOffer.charityAddress = charityAddress;
 
         emit CreateOffer(
@@ -94,9 +87,7 @@ contract NftAuction is Ownable, Pausable, ReentrancyGuard {
             maxBid,
             endTimestamp,
             authorFee,
-            marketingFee,
             authorAddress,
-            marketingAddress,
             charityAddress
         );
     }
@@ -187,18 +178,13 @@ contract NftAuction is Ownable, Pausable, ReentrancyGuard {
         internal
         nonReentrant
     {
-        nft.safeTransferFrom(owner(), recipient, tokenId);
+        nft.safeTransferFrom(address(this), recipient, tokenId);
 
         uint256 authorAmount = (offers[tokenId].currentBid *
             offers[tokenId].authorFee) / 100;
-        uint256 marketingAmount = (offers[tokenId].currentBid *
-            offers[tokenId].marketingFee) / 100;
-        uint256 charityAmount = offers[tokenId].currentBid -
-            authorAmount -
-            marketingAmount;
+        uint256 charityAmount = offers[tokenId].currentBid - authorAmount;
 
         Address.sendValue(offers[tokenId].authorAddress, authorAmount);
-        Address.sendValue(offers[tokenId].marketingAddress, marketingAmount);
         Address.sendValue(offers[tokenId].charityAddress, charityAmount);
 
         emit PurchaseItem(recipient, tokenId);

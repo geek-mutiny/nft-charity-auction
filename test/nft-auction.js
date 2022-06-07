@@ -10,7 +10,6 @@ describe("NFT Auction", function () {
     const provider = waffle.provider;
     const tokenId = 1;
     const authorFee = 5;
-    const marketingFee = 5;
 
     let nft;
     let nftAuction;
@@ -18,7 +17,6 @@ describe("NFT Auction", function () {
     let bidder1;
     let bidder2;
     let author;
-    let marketing;
     let charity;
     let endTimestamp;
 
@@ -29,7 +27,7 @@ describe("NFT Auction", function () {
         const NftAuction = await hre.ethers.getContractFactory("NftAuction");
         const ProxyRegistry = await hre.ethers.getContractFactory("ProxyRegistry");
 
-        [owner, bidder1, bidder2, author, marketing, charity] = await hre.ethers.getSigners();
+        [owner, bidder1, bidder2, author, charity] = await hre.ethers.getSigners();
 
         const proxyRegistry = await ProxyRegistry.deploy();
         await proxyRegistry.deployed();
@@ -50,14 +48,14 @@ describe("NFT Auction", function () {
         await nftAuction.deployed();
 
         await nft.setApprovalForAll(nftAuction.address, true);
-        await nft.mintTo(owner.address, tokenId);
+        await nft.mintTo(nftAuction.address, tokenId);
 
         await expect(nftAuction.createOffer(
             tokenId, ethers.utils.parseEther("0.1"), ethers.utils.parseEther("10"), endTimestamp,
-            authorFee, marketingFee, author.address, marketing.address, charity.address
+            authorFee, author.address, charity.address
         )).to.emit(nftAuction, 'CreateOffer').withArgs(
             tokenId, ethers.utils.parseEther("0.1"), ethers.utils.parseEther("10"), endTimestamp,
-            authorFee, marketingFee, author.address, marketing.address, charity.address
+            authorFee, author.address, charity.address
         );
 
         expect(await nftAuction.offerIsActive(tokenId)).to.be.true;
@@ -70,7 +68,6 @@ describe("NFT Auction", function () {
 
     it("Make max bid and purchase NFT", async function () {
         const authorBalance = await provider.getBalance(author.address);
-        const marketingBalance = await provider.getBalance(marketing.address);
         const charityBalance = await provider.getBalance(charity.address);
         const bidAmount = ethers.utils.parseEther("10");
 
@@ -78,11 +75,9 @@ describe("NFT Auction", function () {
             .to.emit(nftAuction, 'PurchaseItem').withArgs(bidder1.address, tokenId);
 
         const authorFeeAmount = bidAmount.mul(authorFee).div(100);
-        const marketingFeeAmount = bidAmount.mul(marketingFee).div(100);
-        const charityAmount = charityBalance.add(bidAmount.sub(authorFeeAmount).sub(marketingFeeAmount));
+        const charityAmount = charityBalance.add(bidAmount.sub(authorFeeAmount));
 
         expect(await provider.getBalance(author.address)).to.be.equal(authorBalance.add(authorFeeAmount));
-        expect(await provider.getBalance(marketing.address)).to.be.equal(marketingBalance.add(marketingFeeAmount));
         expect(await provider.getBalance(charity.address)).to.be.equal(charityAmount);
     });
 
@@ -140,16 +135,16 @@ describe("NFT Auction", function () {
         let anotherTokenId;
         const anotherEndTimestamp = await getCurrentTimestamp() + 30;
 
-        await nft.mintTo(owner.address, "uri");
+        await nft.mintTo(nftAuction.address, "uri");
 
         anotherTokenId = await nft.totalSupply();
 
         await expect(nftAuction.createOffer(
-            anotherTokenId, ethers.utils.parseEther("1"), 0, anotherEndTimestamp, 5, 5,
-            author.address, marketing.address, charity.address
+            anotherTokenId, ethers.utils.parseEther("1"), 0, anotherEndTimestamp, 5,
+            author.address, charity.address
         )).to.emit(nftAuction, 'CreateOffer').withArgs(
-            anotherTokenId, ethers.utils.parseEther("1"), 0, anotherEndTimestamp, 5, 5,
-            author.address, marketing.address, charity.address
+            anotherTokenId, ethers.utils.parseEther("1"), 0, anotherEndTimestamp, 5,
+            author.address, charity.address
         );
 
         await expect(nftAuction.connect(bidder1).makeBid(anotherTokenId, { value: ethers.utils.parseEther("1.1") }))
