@@ -43,6 +43,7 @@ async function main() {
 
   const NFT = await hre.ethers.getContractFactory("NFT");
   const NftAuction = await hre.ethers.getContractFactory("NftAuction");
+  const Multicall2 = await hre.ethers.getContractFactory("Multicall2");
 
   const nft = await NFT.deploy(
     process.env.NFT_NAME,
@@ -66,15 +67,19 @@ async function main() {
   });*/
 
   const nftAuction = await NftAuction.deploy(
-    nft.address,
     process.env.AUCTION_MAX_FEE
   );
   await nftAuction.deployed();
 
-  await nft.setApprovalForAll(nftAuction.address, true);
+  const tx = await nft.setApprovalForAll(nftAuction.address, true);
+  await tx.wait()
+
+  const multicall2 = await Multicall2.deploy();
+  await multicall2.deployed();
 
   console.log("NFT deployed to:", nft.address);
   console.log("Auction deployed to:", nftAuction.address);
+  console.log("Multicall2 deployed to:", multicall2.address);
 }
 
 main()
