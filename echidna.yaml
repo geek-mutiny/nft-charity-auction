@@ -1,0 +1,9 @@
+# additional arguments to use in crytic-compile for the compilation of the contract to test.
+solcArgs: "--optimize --optimize-runs 200"
+cryticArgs:
+  [
+    "--solc-remaps",
+    "@openzeppelin/contracts=/src/node_modules/@openzeppelin/contracts",
+    "--solc-args",
+    "--allow-paths /src/contracts",
+  ]

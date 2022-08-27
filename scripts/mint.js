@@ -8,10 +8,10 @@ async function uploadTokenData(tokenId) {
     const metadata = require("../metadata/nfts/" + tokenId + ".json");
 
     const { IpfsHash: imageCid } = await pinata.pinFileToIPFS(
-        fs.createReadStream("./images/nfts/" + tokenId + ".png"),
+        fs.createReadStream("./images/nfts/" + tokenId + ".jpg"),
         {
             pinataMetadata: {
-                name: process.env.NFT_SYMBOL + "-" + tokenId + ".png"
+                name: process.env.NFT_SYMBOL + "-" + tokenId + ".jpg"
             }
         }
     );
@@ -28,9 +28,9 @@ async function uploadTokenData(tokenId) {
 }
 
 async function main() {
-    const receiverAddress = process.env.AUCTION_ADDRESS;
     let owner;
     [owner] = await hre.ethers.getSigners();
+    const receiverAddress = owner.address;
 
     const nft = await hre.ethers.getContractAt("NFT", process.env.NFT_ADDRESS);
     const newTokenId = (await nft.totalSupply()).add(1);

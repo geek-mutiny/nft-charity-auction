@@ -1,8 +1,8 @@
 {
-    "name": "Test NFT Collection",
-    "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque ornare consequat ante, ut gravida justo fermentum vitae.",
+    "name": "Ukraine Freedom Art",
+    "description": "Buy NFTs from Ukrainian artists. Visit UkraineFreedom.Art for more details.",
     "image": "",
-    "external_link": "https://testnets.opensea.io",
+    "external_link": "https://ukrainefreedom.art/",
     "seller_fee_basis_points": 200,
     "fee_recipient": ""
 }

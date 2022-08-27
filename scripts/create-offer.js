@@ -8,12 +8,12 @@ const getCurrentTimestamp = async () => {
 }
 
 const createOffer = async (
-    tokenId, nftAddress, initialBid, maxBid, startTimestamp, endTimestamp, artistFee, artistAddress, charityAddress
+    tokenId, nftAddress, minBid, maxBid, startTimestamp, endTimestamp, artistFee, artistAddress, charityAddress
 ) => {
     const tx = await nftAuction.createOffer(
         tokenId,
         nftAddress,
-        initialBid,
+        minBid,
         maxBid,
         startTimestamp,
         endTimestamp,
@@ -28,54 +28,44 @@ const createOffer = async (
 async function main() {
     const [owner] = await hre.ethers.getSigners()
     const currentTimestamp = await getCurrentTimestamp()
+    const startTimestamp = 1661979600 // 2022-09-01 00:00:00
+    const endTimestamp = 1664571599 // 2022-09-30 23:59:59
     nftAuction = await hre.ethers.getContractAt("NftAuction", process.env.AUCTION_ADDRESS)
 
     await createOffer(
         1,
         process.env.NFT_ADDRESS,
-        ethers.utils.parseEther("0.00001"),
+        ethers.utils.parseEther("1"),
         ethers.constants.Zero,
-        currentTimestamp + 60,
-        currentTimestamp + 1200,
-        500, // author fee basis points
-        '', // author (test)
-        '' // charity
+        startTimestamp,
+        endTimestamp,
+        1000, // author fee basis points
+        process.env.AUCTION_AUTHOR_ADDRESS, // author
+        process.env.AUCTION_CHARITY_ADDRESS // charity
     )
 
     await createOffer(
         2,
         process.env.NFT_ADDRESS,
-        ethers.utils.parseEther("0.00002"),
+        ethers.utils.parseEther("1"),
         ethers.constants.Zero,
-        currentTimestamp + 90,
-        currentTimestamp + (86400 * 4),
-        900, // author fee %
-        owner.address, // author
-        '' // charity
+        startTimestamp,
+        endTimestamp,
+        1000, // author fee %
+        process.env.AUCTION_AUTHOR_ADDRESS, // author
+        process.env.AUCTION_CHARITY_ADDRESS // charity
     )
 
     await createOffer(
         3,
         process.env.NFT_ADDRESS,
-        ethers.utils.parseEther("0.00003"),
+        ethers.utils.parseEther("1"),
         ethers.constants.Zero,
-        currentTimestamp + 86400,
-        currentTimestamp + (86400 * 5),
-        800, // author fee %
-        owner.address, // author
-        '' // charity
-    )
-
-    await createOffer(
-        4,
-        process.env.NFT_ADDRESS,
-        ethers.utils.parseEther("0.00004"),
-        ethers.utils.parseEther("0.00009"),
-        currentTimestamp + 120,
-        currentTimestamp + (86400 * 2),
-        2000, // author fee %
-        owner.address, // author
-        '' // charity
+        startTimestamp,
+        endTimestamp,
+        1000, // author fee %
+        process.env.AUCTION_AUTHOR_ADDRESS, // author
+        process.env.AUCTION_CHARITY_ADDRESS // charity
     )
 }
 
